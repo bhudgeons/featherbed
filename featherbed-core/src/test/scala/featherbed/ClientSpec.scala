@@ -10,6 +10,7 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec}
 
 class ClientSpec extends FlatSpec with MockFactory with ClientTest with BeforeAndAfterEach {
 
+
   val receiver = stubFunction[Request, Unit]("receiveRequest")
 
   object InterceptRequest extends SimpleFilter[Request, Response] {
@@ -62,6 +63,26 @@ class ClientSpec extends FlatSpec with MockFactory with ClientTest with BeforeAn
 
     receiver verify request { req =>
       assert(req.uri == s"/api/v1/foo/bar?param2=value3")
+      assert(req.method == Method.Get)
+      assert((req.accept.toSet diff Set("text/plain", "*/*; q=0")) == Set.empty)
+    }
+  }
+
+  it should "get with 'addQueryParams' with varargs" in {
+
+    //KABOOM!!
+    type JSON = shapeless.Coproduct.`"application/json"`.T 
+
+    val params = ("param1" -> "value1") :: ("param2" -> "value2") :: ("param3" -> "value3") :: Nil
+    val req = client
+      .get("foo/bar")
+      .addQueryParams(params:_*)
+      .accept("text/plain")
+
+    Await.result(req.send[String]())
+
+    receiver verify request { req =>
+      assert(req.uri == s"/api/v1/foo/bar?param1=value1&param2=value2&param3=value3")
       assert(req.method == Method.Get)
       assert((req.accept.toSet diff Set("text/plain", "*/*; q=0")) == Set.empty)
     }
